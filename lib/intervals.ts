@@ -35,6 +35,13 @@ function authVariants(credentials: Credentials): AuthVariant[] {
       },
     },
     {
+      label: "basic(apiKey:API_KEY)",
+      headers: {
+        Authorization: `Basic ${btoa(`${apiKey}:API_KEY`)}`,
+        "Content-Type": "application/json",
+      },
+    },
+    {
       label: "basic(athleteId:apiKey)",
       headers: {
         Authorization: `Basic ${btoa(`${athleteId}:${apiKey}`)}`,
@@ -45,6 +52,20 @@ function authVariants(credentials: Credentials): AuthVariant[] {
       label: "bearer(apiKey)",
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    },
+    {
+      label: "x-api-key",
+      headers: {
+        "X-API-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+    },
+    {
+      label: "api-key",
+      headers: {
+        "Api-Key": apiKey,
         "Content-Type": "application/json",
       },
     },
@@ -104,8 +125,9 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
     details,
     "Debug checklist:",
     "1) Athlete path ID is forced to `0` (API-key owner) to avoid mismatched-athlete 403 errors.",
-    "2) Regenerate Intervals.icu API key and retry.",
-    "3) Verify the selected activity belongs to this athlete and is newer than the chosen oldest date.",
+    "2) Regenerate Intervals.icu API key and ensure there are no extra spaces.",
+    "3) Confirm your Intervals account/API key has API access permissions (some plans may restrict API).",
+    "4) Verify the selected activity belongs to this athlete and is newer than the chosen oldest date.",
   ].join("\n");
 }
 
