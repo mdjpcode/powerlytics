@@ -17,6 +17,10 @@ function normalizeNumericId(raw: string): string {
   return digits || trimmed;
 }
 
+function athletePathId(): string {
+  return "0";
+}
+
 
 function authVariants(credentials: Credentials): AuthVariant[] {
   const apiKey = credentials.intervalsApiKey.trim();
@@ -99,7 +103,7 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
     "Auth attempts:",
     details,
     "Debug checklist:",
-    "1) IDs can be entered as `518512` or `i518512`; the app now normalizes both to digits.",
+    "1) Athlete path ID is forced to `0` (API-key owner) to avoid mismatched-athlete 403 errors.",
     "2) Regenerate Intervals.icu API key and retry.",
     "3) Verify the selected activity belongs to this athlete and is newer than the chosen oldest date.",
   ].join("\n");
@@ -107,7 +111,7 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
 
 export async function fetchRecentActivities(credentials: Credentials): Promise<IntervalsActivity[]> {
   const oldest = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const athleteId = normalizeNumericId(credentials.athleteId);
+  const athleteId = athletePathId();
   const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${encodeURIComponent(oldest)}&limit=20`;
   const { response, attempts } = await fetchWithAuthFallback(url, credentials);
 
@@ -130,7 +134,7 @@ export async function fetchActivityStreams(
       ? "time,watts,cadence,heartrate"
       : "time,pace,cadence,heartrate";
 
-  const athleteId = normalizeNumericId(credentials.athleteId);
+  const athleteId = athletePathId();
   const normalizedActivityId = normalizeNumericId(activityId);
   const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities/${normalizedActivityId}/streams?types=${streamType}`;
   const { response, attempts } = await fetchWithAuthFallback(url, credentials);
