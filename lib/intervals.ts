@@ -8,7 +8,8 @@ function buildHeaders(apiKey: string) {
 }
 
 export async function fetchRecentActivities(credentials: Credentials): Promise<IntervalsActivity[]> {
-  const url = `https://intervals.icu/api/v1/athlete/${credentials.athleteId}/activities?limit=20`;
+  const oldest = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  const url = `https://intervals.icu/api/v1/athlete/${credentials.athleteId}/activities?oldest=${encodeURIComponent(oldest)}&limit=20`;
   const response = await fetch(url, { headers: buildHeaders(credentials.intervalsApiKey) });
   if (!response.ok) {
     throw new Error(`Intervals.icu error: ${response.status}`);
