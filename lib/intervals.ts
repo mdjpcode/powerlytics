@@ -11,9 +11,16 @@ interface AttemptResult {
   bodySnippet: string;
 }
 
+function normalizeNumericId(raw: string): string {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D+/g, "");
+  return digits || trimmed;
+}
+
+
 function authVariants(credentials: Credentials): AuthVariant[] {
   const apiKey = credentials.intervalsApiKey.trim();
-  const athleteId = credentials.athleteId.trim();
+  const athleteId = normalizeNumericId(credentials.athleteId);
 
   return [
     {
@@ -92,15 +99,16 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
     "Auth attempts:",
     details,
     "Debug checklist:",
-    "1) Confirm Athlete ID is numeric and matches the account that generated the API key.",
+    "1) IDs can be entered as `518512` or `i518512`; the app now normalizes both to digits.",
     "2) Regenerate Intervals.icu API key and retry.",
-    "3) Verify account has at least one activity newer than the chosen oldest date.",
+    "3) Verify the selected activity belongs to this athlete and is newer than the chosen oldest date.",
   ].join("\n");
 }
 
 export async function fetchRecentActivities(credentials: Credentials): Promise<IntervalsActivity[]> {
   const oldest = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const url = `https://intervals.icu/api/v1/athlete/${credentials.athleteId}/activities?oldest=${encodeURIComponent(oldest)}&limit=20`;
+  const athleteId = normalizeNumericId(credentials.athleteId);
+  const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${encodeURIComponent(oldest)}&limit=20`;
   const { response, attempts } = await fetchWithAuthFallback(url, credentials);
 
   if (!response.ok) {
@@ -122,7 +130,9 @@ export async function fetchActivityStreams(
       ? "time,watts,cadence,heartrate"
       : "time,pace,cadence,heartrate";
 
-  const url = `https://intervals.icu/api/v1/athlete/${credentials.athleteId}/activities/${activityId}/streams?types=${streamType}`;
+  const athleteId = normalizeNumericId(credentials.athleteId);
+  const normalizedActivityId = normalizeNumericId(activityId);
+  const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities/${normalizedActivityId}/streams?types=${streamType}`;
   const { response, attempts } = await fetchWithAuthFallback(url, credentials);
 
   if (!response.ok) {
