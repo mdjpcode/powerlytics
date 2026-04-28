@@ -281,7 +281,7 @@ export default function Home() {
         </section>
       )}
 
-      {error && <p className="mt-4 rounded border border-rose-500 bg-rose-950/40 p-3 text-rose-200">{error}</p>}
+      {error && <p className="mt-4 whitespace-pre-wrap rounded border border-rose-500 bg-rose-950/40 p-3 text-rose-200">{error}</p>}
     </main>
   );
 }

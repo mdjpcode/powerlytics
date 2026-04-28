@@ -1,64 +1,110 @@
 import { ActivityStreams, Credentials, IntervalsActivity, SportType } from "@/lib/types";
 
-function authVariants(credentials: Credentials): HeadersInit[] {
+interface AuthVariant {
+  label: string;
+  headers: HeadersInit;
+}
+
+interface AttemptResult {
+  auth: string;
+  status: number;
+  bodySnippet: string;
+}
+
+function authVariants(credentials: Credentials): AuthVariant[] {
   const apiKey = credentials.intervalsApiKey.trim();
   const athleteId = credentials.athleteId.trim();
 
   return [
     {
-      Authorization: `Basic ${btoa(`API_KEY:${apiKey}`)}`,
-      "Content-Type": "application/json",
+      label: "basic(API_KEY:apiKey)",
+      headers: {
+        Authorization: `Basic ${btoa(`API_KEY:${apiKey}`)}`,
+        "Content-Type": "application/json",
+      },
     },
     {
-      Authorization: `Basic ${btoa(`${athleteId}:${apiKey}`)}`,
-      "Content-Type": "application/json",
+      label: "basic(athleteId:apiKey)",
+      headers: {
+        Authorization: `Basic ${btoa(`${athleteId}:${apiKey}`)}`,
+        "Content-Type": "application/json",
+      },
     },
     {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+      label: "bearer(apiKey)",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
     },
   ];
 }
 
-async function fetchWithAuthFallback(url: string, credentials: Credentials): Promise<Response> {
-  let lastResponse: Response | null = null;
-
-  for (const headers of authVariants(credentials)) {
-    const response = await fetch(url, { headers });
-
-    if (response.ok) {
-      return response;
-    }
-
-    lastResponse = response;
-
-    // If authentication is not the issue, do not continue retrying with other auth shapes.
-    if (response.status !== 401 && response.status !== 403) {
-      return response;
-    }
+async function readBodySnippet(response: Response): Promise<string> {
+  try {
+    const text = await response.text();
+    return text.slice(0, 240) || "<empty>";
+  } catch {
+    return "<unreadable body>";
   }
-
-  if (!lastResponse) {
-    throw new Error("Intervals.icu request failed before receiving a response.");
-  }
-
-  return lastResponse;
 }
 
-function buildIntervalsError(prefix: string, status: number): string {
-  if (status === 401 || status === 403) {
-    return `${prefix}: ${status}. Access denied. Verify Athlete ID + API key in Intervals.icu settings and confirm API access is enabled for the key.`;
+async function fetchWithAuthFallback(
+  url: string,
+  credentials: Credentials,
+): Promise<{ response: Response; attempts: AttemptResult[] }> {
+  const attempts: AttemptResult[] = [];
+
+  for (const variant of authVariants(credentials)) {
+    const response = await fetch(url, { headers: variant.headers });
+
+    if (response.ok) {
+      return { response, attempts };
+    }
+
+    const bodySnippet = await readBodySnippet(response);
+    attempts.push({ auth: variant.label, status: response.status, bodySnippet });
+
+    if (response.status !== 401 && response.status !== 403) {
+      return { response, attempts };
+    }
   }
-  return `${prefix}: ${status}`;
+
+  // Repeat the first request once so caller still receives a response handle.
+  const fallback = await fetch(url, { headers: authVariants(credentials)[0].headers });
+  return { response: fallback, attempts };
+}
+
+function sanitizeUrl(url: string): string {
+  return url.replace(/(apiKey=)[^&]+/gi, "$1<redacted>");
+}
+
+function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult[], status: number) {
+  const details = attempts.length
+    ? attempts
+        .map((a) => `- ${a.auth}: HTTP ${a.status}; body: ${a.bodySnippet}`)
+        .join("\n")
+    : "- no auth fallback attempts recorded";
+
+  return [
+    `${prefix}: HTTP ${status}`,
+    `Request: ${sanitizeUrl(url)}`,
+    "Auth attempts:",
+    details,
+    "Debug checklist:",
+    "1) Confirm Athlete ID is numeric and matches the account that generated the API key.",
+    "2) Regenerate Intervals.icu API key and retry.",
+    "3) Verify account has at least one activity newer than the chosen oldest date.",
+  ].join("\n");
 }
 
 export async function fetchRecentActivities(credentials: Credentials): Promise<IntervalsActivity[]> {
-  const oldest = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  const oldest = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const url = `https://intervals.icu/api/v1/athlete/${credentials.athleteId}/activities?oldest=${encodeURIComponent(oldest)}&limit=20`;
-  const response = await fetchWithAuthFallback(url, credentials);
+  const { response, attempts } = await fetchWithAuthFallback(url, credentials);
 
   if (!response.ok) {
-    throw new Error(buildIntervalsError("Intervals.icu error", response.status));
+    throw new Error(formatDebugMessage("Intervals.icu error", url, attempts, response.status));
   }
 
   return (await response.json()) as IntervalsActivity[];
@@ -77,10 +123,10 @@ export async function fetchActivityStreams(
       : "time,pace,cadence,heartrate";
 
   const url = `https://intervals.icu/api/v1/athlete/${credentials.athleteId}/activities/${activityId}/streams?types=${streamType}`;
-  const response = await fetchWithAuthFallback(url, credentials);
+  const { response, attempts } = await fetchWithAuthFallback(url, credentials);
 
   if (!response.ok) {
-    throw new Error(buildIntervalsError("Intervals.icu stream error", response.status));
+    throw new Error(formatDebugMessage("Intervals.icu stream error", url, attempts, response.status));
   }
 
   return (await response.json()) as ActivityStreams;
