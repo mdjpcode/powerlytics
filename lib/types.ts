@@ -15,6 +15,9 @@ export interface IntervalsActivity {
   sport?: string;
   distance?: number;
   moving_time?: number;
+  activity_id?: string | number;
+  icu_id?: string | number;
+  id_num?: string | number;
 }
 
 export interface ActivityStreams {

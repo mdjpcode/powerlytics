@@ -99,7 +99,7 @@ export default function Home() {
     setLoading(true);
     try {
       const sportType = getSport(activity);
-      const data = await fetchActivityStreams(credentials, activity.id, sportType);
+      const data = await fetchActivityStreams(credentials, activity, sportType);
       setStreams(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch streams");

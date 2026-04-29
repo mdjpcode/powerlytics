@@ -21,6 +21,26 @@ function athletePathId(): string {
   return "0";
 }
 
+function activityIdCandidates(activity: IntervalsActivity): string[] {
+  const rawCandidates = [
+    activity.id,
+    activity.activity_id,
+    activity.icu_id,
+    activity.id_num,
+  ];
+
+  const normalized = rawCandidates
+    .filter((value): value is string | number => value !== undefined && value !== null)
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+    .flatMap((value) => {
+      const numeric = normalizeNumericId(value);
+      return numeric && numeric !== value ? [value, numeric] : [value];
+    });
+
+  return [...new Set(normalized)];
+}
+
 
 function authVariants(credentials: Credentials): AuthVariant[] {
   const apiKey = credentials.intervalsApiKey.trim();
@@ -127,7 +147,8 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
     "1) Athlete path ID is forced to `0` (API-key owner) to avoid mismatched-athlete 403 errors.",
     "2) Regenerate Intervals.icu API key and ensure there are no extra spaces.",
     "3) Confirm your Intervals account/API key has API access permissions (some plans may restrict API).",
-    "4) Verify the selected activity exists and includes the requested stream types (pace/watts/cadence/etc).",
+    "4) Verify the selected activity exists for this key and includes requested stream types (pace/watts/cadence/etc).",
+    "5) If list loads but streams fail, the app now retries alternate activity ID fields from the activity payload.",
   ].join("\n");
 }
 
@@ -172,7 +193,7 @@ async function fetchFirstWorkingStreamUrl(
 
 export async function fetchActivityStreams(
   credentials: Credentials,
-  activityId: string,
+  activity: IntervalsActivity,
   sport: SportType,
 ): Promise<ActivityStreams> {
   const streamType =
@@ -182,13 +203,13 @@ export async function fetchActivityStreams(
       ? "time,watts,cadence,heartrate"
       : "time,pace,cadence,heartrate";
 
-  const normalizedActivityId = normalizeNumericId(activityId);
   const athleteId = athletePathId();
-  const streamUrls = [
-    `https://intervals.icu/api/v1/activity/${normalizedActivityId}/streams.json?types=${streamType}`,
-    `https://intervals.icu/api/v1/athlete/${athleteId}/activities/${normalizedActivityId}/streams?types=${streamType}`,
-    `https://intervals.icu/api/v1/athlete/${athleteId}/activity/${normalizedActivityId}/streams?types=${streamType}`,
-  ];
+  const candidateIds = activityIdCandidates(activity);
+  const streamUrls = candidateIds.flatMap((candidateId) => [
+    `https://intervals.icu/api/v1/activity/${candidateId}/streams.json?types=${streamType}`,
+    `https://intervals.icu/api/v1/athlete/${athleteId}/activities/${candidateId}/streams?types=${streamType}`,
+    `https://intervals.icu/api/v1/athlete/${athleteId}/activity/${candidateId}/streams?types=${streamType}`,
+  ]);
 
   const { response, attempts, requestUrl } = await fetchFirstWorkingStreamUrl(streamUrls, credentials);
 
