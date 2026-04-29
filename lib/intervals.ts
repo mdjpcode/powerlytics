@@ -127,7 +127,7 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
     "1) Athlete path ID is forced to `0` (API-key owner) to avoid mismatched-athlete 403 errors.",
     "2) Regenerate Intervals.icu API key and ensure there are no extra spaces.",
     "3) Confirm your Intervals account/API key has API access permissions (some plans may restrict API).",
-    "4) Verify the selected activity belongs to this athlete and is newer than the chosen oldest date.",
+    "4) Verify the selected activity exists and includes the requested stream types (pace/watts/cadence/etc).",
   ].join("\n");
 }
 
@@ -156,9 +156,8 @@ export async function fetchActivityStreams(
       ? "time,watts,cadence,heartrate"
       : "time,pace,cadence,heartrate";
 
-  const athleteId = athletePathId();
   const normalizedActivityId = normalizeNumericId(activityId);
-  const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities/${normalizedActivityId}/streams?types=${streamType}`;
+  const url = `https://intervals.icu/api/v1/activity/${normalizedActivityId}/streams.json?types=${streamType}`;
   const { response, attempts } = await fetchWithAuthFallback(url, credentials);
 
   if (!response.ok) {
