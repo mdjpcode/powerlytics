@@ -144,6 +144,32 @@ export async function fetchRecentActivities(credentials: Credentials): Promise<I
   return (await response.json()) as IntervalsActivity[];
 }
 
+
+async function fetchFirstWorkingStreamUrl(
+  urls: string[],
+  credentials: Credentials,
+): Promise<{ response: Response; attempts: AttemptResult[]; requestUrl: string }> {
+  const combined: AttemptResult[] = [];
+
+  for (const url of urls) {
+    const { response, attempts } = await fetchWithAuthFallback(url, credentials);
+    combined.push(...attempts.map((a) => ({ ...a, auth: `${a.auth} @ ${url}` })));
+
+    if (response.ok) {
+      return { response, attempts: combined, requestUrl: url };
+    }
+
+    if (response.status !== 404) {
+      return { response, attempts: combined, requestUrl: url };
+    }
+  }
+
+  const lastUrl = urls[urls.length - 1];
+  const { response, attempts } = await fetchWithAuthFallback(lastUrl, credentials);
+  combined.push(...attempts.map((a) => ({ ...a, auth: `${a.auth} @ ${lastUrl}` })));
+  return { response, attempts: combined, requestUrl: lastUrl };
+}
+
 export async function fetchActivityStreams(
   credentials: Credentials,
   activityId: string,
@@ -157,11 +183,17 @@ export async function fetchActivityStreams(
       : "time,pace,cadence,heartrate";
 
   const normalizedActivityId = normalizeNumericId(activityId);
-  const url = `https://intervals.icu/api/v1/activity/${normalizedActivityId}/streams.json?types=${streamType}`;
-  const { response, attempts } = await fetchWithAuthFallback(url, credentials);
+  const athleteId = athletePathId();
+  const streamUrls = [
+    `https://intervals.icu/api/v1/activity/${normalizedActivityId}/streams.json?types=${streamType}`,
+    `https://intervals.icu/api/v1/athlete/${athleteId}/activities/${normalizedActivityId}/streams?types=${streamType}`,
+    `https://intervals.icu/api/v1/athlete/${athleteId}/activity/${normalizedActivityId}/streams?types=${streamType}`,
+  ];
+
+  const { response, attempts, requestUrl } = await fetchFirstWorkingStreamUrl(streamUrls, credentials);
 
   if (!response.ok) {
-    throw new Error(formatDebugMessage("Intervals.icu stream error", url, attempts, response.status));
+    throw new Error(formatDebugMessage("Intervals.icu stream error", requestUrl, attempts, response.status));
   }
 
   return (await response.json()) as ActivityStreams;
