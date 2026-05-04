@@ -4,14 +4,14 @@ A client-side training analysis dashboard built with Next.js App Router, React, 
 
 ## Features
 
-- Credential entry for Intervals.icu Athlete ID + API key and Gemini API key.
+- Credential entry for Intervals.icu Athlete ID + API key, with optional Gemini API key.
 - Optional localStorage persistence (`Save for next time`).
 - Loads recent Intervals.icu activities.
 - Supports swim, bike, and run data streams.
 - Planned workout parser (`5x5 min @ 300W`, `10x100m at 1:30 pace`, etc.).
 - Planned vs actual interval analysis + compliance percentage.
 - Time-in-zone calculation and visualizations.
-- Gemini-generated coaching feedback from analyzed workout data.
+- Gemini 2.5 Flash coaching feedback from analyzed workout data, with a local fallback summary if Gemini quota is unavailable.
 
 ## Tech stack
 

@@ -25,9 +25,9 @@ export interface ActivityStreams {
   watts?: number[];
   heartrate?: number[];
   cadence?: number[];
+  distance?: number[];
+  velocity_smooth?: number[];
   pace?: number[];
-  swolf?: number[];
-  strokeRate?: number[];
 }
 
 export interface PlannedInterval {

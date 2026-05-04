@@ -14,7 +14,7 @@ import {
   BarChart,
 } from "recharts";
 import { analyzeIntervals, calculateCompliance, calculateTimeInZones, metricForSport } from "@/lib/analysis";
-import { generateGeminiInsight } from "@/lib/gemini";
+import { GeminiQuotaError, generateGeminiInsight, generateLocalInsight } from "@/lib/gemini";
 import { fetchActivityStreams, fetchRecentActivities } from "@/lib/intervals";
 import { parseWorkoutText } from "@/lib/planner";
 import { loadSavedCredentials, persistCredentials } from "@/lib/storage";
@@ -110,6 +110,10 @@ export default function Home() {
 
   async function handleGenerateInsight() {
     if (!analysis || !selected) return;
+    if (!credentials.geminiApiKey.trim()) {
+      setError("Add a Gemini API key before generating coaching insight.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -121,7 +125,17 @@ export default function Home() {
       });
       setInsight(text);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate insight");
+      if (err instanceof GeminiQuotaError) {
+        setInsight(generateLocalInsight({
+          planText,
+          compliance: analysis.compliance,
+          results: analysis.intervalResults,
+          sport,
+        }));
+        setError(`${err.message}\n\nShowing a local coaching summary instead.`);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to generate insight");
+      }
     } finally {
       setLoading(false);
     }
@@ -154,12 +168,11 @@ export default function Home() {
             />
           </label>
           <label className="grid gap-1 lg:col-span-2">
-            <span>Gemini API Key</span>
+            <span>Gemini API Key (optional)</span>
             <input
               className="rounded border border-slate-600 bg-slate-950 px-3 py-2"
               value={credentials.geminiApiKey}
               onChange={(e) => setCredentials((c) => ({ ...c, geminiApiKey: e.target.value }))}
-              required
               type="password"
             />
           </label>

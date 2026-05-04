@@ -147,7 +147,7 @@ function formatDebugMessage(prefix: string, url: string, attempts: AttemptResult
     "1) Athlete path ID is forced to `0` (API-key owner) to avoid mismatched-athlete 403 errors.",
     "2) Regenerate Intervals.icu API key and ensure there are no extra spaces.",
     "3) Confirm your Intervals account/API key has API access permissions (some plans may restrict API).",
-    "4) Verify the selected activity exists for this key and includes requested stream types (pace/watts/cadence/etc).",
+    "4) Verify the selected activity exists for this key and includes requested stream types (velocity_smooth/watts/cadence/etc).",
     "5) If list loads but streams fail, the app now retries alternate activity ID fields from the activity payload.",
   ].join("\n");
 }
@@ -198,10 +198,10 @@ export async function fetchActivityStreams(
 ): Promise<ActivityStreams> {
   const streamType =
     sport === "SWIM"
-      ? "time,pace,swolf,strokeRate,heartrate"
+      ? "time,distance,velocity_smooth,heartrate,cadence"
       : sport === "RIDE"
-      ? "time,watts,cadence,heartrate"
-      : "time,pace,cadence,heartrate";
+      ? "time,distance,watts,cadence,heartrate"
+      : "time,distance,velocity_smooth,cadence,heartrate";
 
   const athleteId = athletePathId();
   const candidateIds = activityIdCandidates(activity);
@@ -217,5 +217,14 @@ export async function fetchActivityStreams(
     throw new Error(formatDebugMessage("Intervals.icu stream error", requestUrl, attempts, response.status));
   }
 
-  return (await response.json()) as ActivityStreams;
+  const streams = (await response.json()) as ActivityStreams;
+
+  if (!streams.pace && streams.velocity_smooth) {
+    streams.pace = streams.velocity_smooth.map((velocity) => {
+      if (!velocity || velocity <= 0) return 0;
+      return sport === "SWIM" ? 100 / velocity : 1000 / velocity;
+    });
+  }
+
+  return streams;
 }
